@@ -99,7 +99,6 @@ def register_user(login: str, nickname : str, group : str, password : str):
         group = group,
         password = get_password_hash(password),
         chats = []) 
-
 @db_session
 def login_user(login:str,password:str) -> str:
     tryuser : UserModel = UserModel.get(login = login)
@@ -114,8 +113,6 @@ def login_user(login:str,password:str) -> str:
         "id" : str(tryuser.id) 
         })
     return token
-
-
 @db_session
 def get_account_user(id : uuid.UUID):
     user = UserModel[id]

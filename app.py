@@ -26,14 +26,29 @@ def post_chat(request : Request, data = Body()):
 def get_chat(chatId : uuid.UUID,request : Request):
     return read_chat(chatId, get_user_id(request))
 
-rooms : dict[uuid.UUID,list[WebSocket]] = {}
+class Hub:
+    def __init__(self):
+        self.rooms : dict[uuid.UUID,list[WebSocket]] = {}
+    def add_socket(self, room_id : uuid.UUID, websocket : WebSocket) -> None:
+        if(room_id in self.rooms.keys()):    
+            self.rooms[room_id].append(websocket)
+        else:   
+            self.rooms[room_id] = [websocket]
+    def remove_socket(self, room_id : uuid.UUID, websocket : WebSocket) -> None:
+        self.rooms[room_id].remove(websocket)
+        if self.rooms[room_id] == []:
+            self.rooms.pop(room_id)
+    async def sendAllAsync(self, room_id : uuid.UUID, message : str) -> None:
+        for u in self.rooms[room_id]:
+                await u.send_text(message)
+
+hub = Hub() 
 @app.websocket("/ws/{chat_id}")
 async def websocket_endpoint(websocket: WebSocket, chat_id: uuid.UUID):
     user_id = get_user_id(websocket)
     await websocket.accept()
 
-    if(chat_id in rooms.keys()):    rooms[chat_id].append(websocket)
-    else:   rooms[chat_id] = [websocket]
+    hub.add_socket(chat_id,websocket)
 
     try:
         while True:
@@ -42,12 +57,9 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: uuid.UUID):
             m_id = create_message(data, user_id, chat_id)
             message = read_message(m_id)
 
-            for u in rooms[chat_id]:
-                await u.send_text(message)
+            await hub.sendAllAsync(chat_id,message)
     except WebSocketDisconnect:
-        rooms[chat_id].remove(websocket)
-
-    
+        hub.remove_socket(chat_id,websocket)
 
 if __name__ == "__main__":
     import uvicorn
